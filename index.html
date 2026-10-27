@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>桌面伴侣 — 会说话的开源桌面 AI 伴侣</title>
+<meta name="description" content="基于 ESP32-S3 与 3.5 英寸触摸屏的开源桌面 AI 伴侣，由智谱 GLM 大模型驱动。按住说话，开口即答。">
+<!-- 分享到社交平台时的预览信息 -->
+<meta property="og:title" content="桌面伴侣 — 会说话的开源桌面 AI 伴侣">
+<meta property="og:description" content="按住说话，开口即答。ESP32-S3 × GLM 大模型，固件全开源。">
+<meta property="og:image" content="https://junyoung-bot.github.io/desktop-companion/photo-front.jpg">
+<style>
+  :root {
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --ink: #1c1917;
+    --ink-2: #57534e;
+    --ink-3: #a8a29e;
+    --accent: #4f46e5;
+    --accent-2: #7c3aed;
+    --accent-soft: #eef2ff;
+    --line: #e7e5e4;
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(28,25,23,.05), 0 8px 24px rgba(28,25,23,.06);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.7;
+  }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* ===== 顶部导航 ===== */
+  header {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(250,250,249,.85); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+  .brand-dot {
+    width: 26px; height: 26px; border-radius: 8px; flex: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px;
+  }
+  .nav-links { display: flex; gap: 26px; font-size: 14px; color: var(--ink-2); }
+  .nav-links a { color: inherit; text-decoration: none; }
+  .nav-links a:hover { color: var(--accent); }
+  .nav-cta {
+    font-size: 14px; font-weight: 600; text-decoration: none;
+    padding: 7px 16px; border-radius: 999px;
+    background: var(--ink); color: #fff; transition: opacity .2s;
+  }
+  .nav-cta:hover { opacity: .85; }
+  @media (max-width: 720px) { .nav-links { display: none; } }
+
+  /* ===== Hero ===== */
+  .hero {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(700px 340px at 85% -10%, rgba(124,58,237,.10), transparent 65%),
+      radial-gradient(600px 320px at 5% 0%, rgba(79,70,229,.10), transparent 60%);
+    padding: 84px 0 92px;
+  }
+  .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 56px; align-items: center; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 13px; font-weight: 600; color: var(--accent);
+    background: var(--accent-soft); border: 1px solid #dfe3ff;
+    padding: 5px 14px; border-radius: 999px; margin-bottom: 22px;
+  }
+  .badge::before {
+    content: ""; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+  }
+  h1 { font-size: 44px; line-height: 1.25; letter-spacing: .01em; margin-bottom: 18px; }
+  h1 .grad {
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .hero p.lead { font-size: 17px; color: var(--ink-2); max-width: 34em; margin-bottom: 32px; }
+  .hero-btns { display: flex; gap: 14px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 15px; font-weight: 600; text-decoration: none;
+    padding: 12px 26px; border-radius: 12px; transition: all .2s;
+  }
+  .btn-primary {
+    background: linear-gradient(120deg, var(--accent), var(--accent-2));
+    color: #fff; box-shadow: 0 8px 20px rgba(79,70,229,.28);
+  }
+  .btn-primary:hover { transform: translateY(-1px); }
+  .btn-ghost { color: var(--ink); border: 1px solid var(--line); background: var(--card); }
+  .btn-ghost:hover { border-color: var(--ink-3); }
+
+  /* ===== 设备模拟图（纯 CSS，照片就位后可整块删除）===== */
+  .device-wrap { display: flex; justify-content: center; }
+  .device {
+    width: 264px; background: #292524; border-radius: 22px;
+    padding: 12px; box-shadow:
+      0 24px 60px rgba(28,25,23,.28),
+      inset 0 1px 1px rgba(255,255,255,.12);
+    transform: rotate(1.5deg);
+  }
+  .screen {
+    background: #0f0e0d; border-radius: 12px; overflow: hidden;
+    display: flex; flex-direction: column; height: 348px;
+  }
+  .statusbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 12px 6px; font-size: 10px; color: #a8a29e;
+  }
+  .statusbar .sig { display: flex; gap: 4px; align-items: center; }
+  .sig-bar { width: 3px; background: #a8a29e; border-radius: 1px; }
+  .chat { flex: 1; padding: 8px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .bubble {
+    max-width: 82%; padding: 8px 12px; border-radius: 14px;
+    font-size: 12.5px; line-height: 1.55;
+  }
+  .bubble.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+  .bubble.ai { align-self: flex-start; background: #292524; color: #e7e5e4; border-bottom-left-radius: 4px; }
+  .bubble.ai .who { display: block; font-size: 10px; color: var(--ink-3); margin-bottom: 3px; }
+  .ptt {
+    margin: 4px 12px 12px; padding: 10px 0; border-radius: 999px;
+    background: #292524; color: #e7e5e4; text-align: center;
+    font-size: 12px; letter-spacing: .1em;
+  }
+  .ptt .mic { color: var(--accent-2); }
+
+  /* ===== 通用 section ===== */
+  section { padding: 76px 0; }
+  section.alt { background: var(--card); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .sec-head { max-width: 620px; margin-bottom: 44px; }
+  .sec-kicker { font-size: 13px; font-weight: 700; letter-spacing: .14em; color: var(--accent); text-transform: uppercase; margin-bottom: 10px; }
+  .sec-head h2 { font-size: 30px; line-height: 1.35; }
+  .sec-head p { color: var(--ink-2); margin-top: 10px; font-size: 15.5px; }
+
+  /* ===== 功能卡片 ===== */
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 26px 22px; box-shadow: var(--shadow);
+  }
+  section:not(.alt) .card { background: #fff; }
+  .card .ico {
+    width: 42px; height: 42px; border-radius: 12px; flex: none;
+    background: var(--accent-soft); display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 16px;
+  }
+  .card h3 { font-size: 16.5px; margin-bottom: 8px; }
+  .card p { font-size: 14px; color: var(--ink-2); }
+
+  /* ===== 场景卡片（宽卡）===== */
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .scene { border-radius: var(--radius); padding: 28px 24px; border: 1px solid var(--line); background: var(--bg); }
+  .scene .tag { font-size: 12px; font-weight: 700; color: var(--accent); letter-spacing: .08em; margin-bottom: 10px; }
+  .scene h3 { font-size: 18px; margin-bottom: 10px; }
+  .scene ul { list-style: none; }
+  .scene li { font-size: 14px; color: var(--ink-2); padding-left: 18px; position: relative; margin-bottom: 6px; }
+  .scene li::before { content: "·"; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
+
+  /* ===== 架构流程（已删区块，样式保留可复用：.flow-node 三段式流程图）=====
+  .flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 14px; align-items: stretch; }
+  .flow-node {
+    border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg);
+    padding: 22px 20px; text-align: center;
+  }
+  .flow-node .ico { font-size: 26px; margin-bottom: 10px; }
+  .flow-node h3 { font-size: 15.5px; margin-bottom: 6px; }
+  .flow-node p { font-size: 13px; color: var(--ink-2); }
+  .flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--ink-3); font-size: 20px; }
+  .flow-note { margin-top: 22px; font-size: 13.5px; color: var(--ink-3); text-align: center; }
+  */
+
+  /* ===== 规格表 ===== */
+  .spec-table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); }
+  .spec-table th, .spec-table td { text-align: left; padding: 14px 22px; font-size: 14.5px; border-bottom: 1px solid var(--line); }
+  .spec-table th { width: 160px; color: var(--ink-3); font-weight: 600; background: #fafaf9; }
+  .spec-table tr:last-child th, .spec-table tr:last-child td { border-bottom: none; }
+
+  /* ===== 产品图鉴（实拍竖图，3:4 卡片）===== */
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .photo-grid figure { margin: 0; }
+  .photo-grid img {
+    width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block;
+    border-radius: var(--radius); box-shadow: var(--shadow); background: #f5f5f4;
+  }
+  .photo-grid figcaption { margin-top: 10px; text-align: center; font-size: 13px; color: var(--ink-3); }
+
+  /* ===== 路线图（已删区块，样式保留可复用：.milestone 时间线卡片）=====
+  .timeline { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+  .milestone { border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 24px; background: var(--bg); position: relative; }
+  .milestone .phase {
+    display: inline-block; font-size: 12px; font-weight: 700;
+    padding: 3px 12px; border-radius: 999px; margin-bottom: 14px;
+  }
+  .milestone.now .phase { background: #dcfce7; color: #15803d; }
+  .milestone.next .phase { background: var(--accent-soft); color: var(--accent); }
+  .milestone h3 { font-size: 17px; margin-bottom: 8px; }
+  .milestone p { font-size: 14px; color: var(--ink-2); }
+  */
+
+  /* ===== 页脚 ===== */
+  footer { border-top: 1px solid var(--line); padding: 40px 0 52px; color: var(--ink-3); font-size: 13.5px; }
+  .foot-grid { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+
+  @media (max-width: 880px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 44px; }
+    h1 { font-size: 34px; }
+    .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    .grid-3, .photo-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 520px) {
+    .grid-4 { grid-template-columns: 1fr; }
+    section { padding: 56px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <div class="brand">
+      <div class="brand-dot">◐</div>
+      桌面伴侣
+    </div>
+    <nav class="nav-links">
+      <a href="#features">核心功能</a>
+      <a href="#scenes">应用场景</a>
+      <a href="#spec">硬件规格</a>
+    </nav>
+    <a class="nav-cta" href="https://github.com/junyoung-bot/desktop-companion" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</header>
+
+<div class="hero">
+  <div class="container hero-grid">
+    <div>
+      <div class="badge">开源 · Apache-2.0 · 由智谱 GLM 大模型驱动</div>
+      <h1>会说话的<br><span class="grad">桌面 AI 伴侣</span></h1>
+      <p class="lead">
+        一台放在桌面上的开源智能小屏。按住按键说话，它听懂、思考、回答——
+        语音开口即答，文字同步上屏。不唤醒词、不用掏手机，抬手就能问。
+      </p>
+      <div class="hero-btns">
+        <a class="btn btn-primary" href="#features">看看它能做什么</a>
+        <a class="btn btn-ghost" href="#spec">硬件规格</a>
+      </div>
+    </div>
+
+    <!-- 纯 CSS 设备示意图；实拍照片就位后可整块替换 -->
+    <div class="device-wrap">
+      <div class="device">
+        <div class="screen">
+          <div class="statusbar">
+            <span>09:41</span>
+            <span class="sig"><i class="sig-bar" style="height:4px"></i><i class="sig-bar" style="height:7px"></i><i class="sig-bar" style="height:10px"></i></span>
+          </div>
+          <div class="chat">
+            <div class="bubble user">帮我看看今天适合出门跑步吗？</div>
+            <div class="bubble ai"><span class="who">GLM</span>今天多云转晴，18–26℃，空气质量优，傍晚 6 点后体感最舒服，适合慢跑 30 分钟 🏃</div>
+            <div class="bubble user">那把明早的闹钟定在七点半</div>
+          </div>
+          <div class="ptt"><span class="mic">●</span> 按住说话</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section id="features">
+  <div class="container">
+    <div class="sec-head">
+      <div class="sec-kicker">Features</div>
+      <h2>核心功能</h2>
+      <p>少即是多：没有复杂的 App，没有唤醒词，一块屏、一个键，把大模型放到你手边。</p>
+    </div>
+    <div class="grid-4">
+      <div class="card">
+        <div class="ico">🎙️</div>
+        <h3>按住说话，开口即答</h3>
+        <p>按下按键对着它说话，语音实时转写、GLM 生成回答、清亮人声播报，全程不到一个呼吸的等待。</p>
+      </div>
+      <div class="card">
+        <div class="ico">💬</div>
+        <h3>看得见的对话</h3>
+        <p>3.5 英寸触摸屏同步显示完整对话，中文渲染清晰细腻。听不清就低头看一眼，重要信息不划走。</p>
+      </div>
+      <div class="card">
+        <div class="ico">🌙</div>
+        <h3>勿扰模式</h3>
+        <p>一键切换：深夜问它，只亮屏、不出声。屏幕亮度自动压暗，回答改成文字，不打扰枕边人。</p>
+      </div>
+      <div class="card">
+        <div class="ico">🛠️</div>
+        <h3>全开源，随便改</h3>
+        <p>固件与网关均以 Apache-2.0 开源。自定义按键行为、换提示词、加传感器——它是一块趁手的开发板。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="scenes" class="alt">
+  <div class="container">
+    <div class="sec-head">
+      <div class="sec-kicker">Scenarios</div>
+      <h2>应用场景</h2>
+      <p>放在书桌、床头或工位上，谁都能用：不需要学习，开口就行。</p>
+    </div>
+    <div class="grid-3">
+      <div class="scene">
+        <div class="tag">WORK</div>
+        <h3>桌面办公助手</h3>
+        <ul>
+          <li>写着代码想查个问题，动口不动手</li>
+          <li>天气、日程、汇率，抬手一问</li>
+          <li>长文粘贴过来，让它念摘要</li>
+          <li>中英互译，口语润色</li>
+        </ul>
+      </div>
+      <div class="scene">
+        <div class="tag">COMPANION</div>
+        <h3>日常陪伴</h3>
+        <ul>
+          <li>睡前聊聊今天，讲个冷知识</li>
+          <li>老人小孩零门槛，按住就能说话</li>
+          <li>白噪音、番茄钟、正念呼吸</li>
+          <li>夜里有它应一声，不孤单</li>
+        </ul>
+      </div>
+      <div class="scene">
+        <div class="tag">MAKER</div>
+        <h3>开发者乐园</h3>
+        <ul>
+          <li>ESP32-S3 + 触摸屏，标准 IDF 工程</li>
+          <li>固件开源，引脚定义文档齐全</li>
+          <li>网关可自建，模型随便换</li>
+          <li>接传感器、做桌宠、改 UI 都行</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="spec">
+  <div class="container">
+    <div class="sec-head">
+      <div class="sec-kicker">Hardware</div>
+      <h2>硬件规格</h2>
+      <p>当前开发者套件基于 Waveshare ESP32-S3-Touch-LCD-3.5 核心板，规格如下。</p>
+    </div>
+    <table class="spec-table">
+      <tr><th>主控</th><td>ESP32-S3 双核处理器，带 PSRAM</td></tr>
+      <tr><th>屏幕</th><td>3.5 英寸 320×480 IPS 电容触摸屏</td></tr>
+      <tr><th>音频</th><td>ES8311 编解码芯片，板载麦克风与扬声器</td></tr>
+      <tr><th>连接</th><td>Wi-Fi 2.4GHz · USB-C 接口</td></tr>
+      <tr><th>电源</th><td>USB-C 供电，预留锂电池接口（AXP2101 电源管理）</td></tr>
+    </table>
+  </div>
+</section>
+
+<section id="photos" class="alt">
+  <div class="container">
+    <div class="sec-head">
+      <div class="sec-kicker">Gallery</div>
+      <h2>产品图鉴</h2>
+      <p>真实硬件，真实运行。</p>
+    </div>
+    <div class="photo-grid">
+      <figure>
+        <img src="photo-front.jpg" alt="整机正面：待机主界面，像素宠物与功能按键">
+        <figcaption>整机正面 · 待机主界面</figcaption>
+      </figure>
+      <figure>
+        <img src="photo-back.jpg" alt="主板与接口：Waveshare ESP32-S3-Touch-LCD-3.5">
+        <figcaption>主板与接口 · Waveshare ESP32-S3-Touch-LCD-3.5</figcaption>
+      </figure>
+      <figure>
+        <img src="photo-ui.jpg" alt="语音交互进行中：按住说话">
+        <figcaption>按住说话 · 语音交互进行中</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container foot-grid">
+    <div>
+      <div class="brand" style="color:var(--ink-2);margin-bottom:8px;">
+        <div class="brand-dot">◐</div> 桌面伴侣
+      </div>
+      <div>开源桌面 AI 伴侣 · 由智谱 GLM 大模型驱动</div>
+    </div>
+    <div style="text-align:right">
+      <!-- TODO: 仓库公开后可再确认链接 -->
+      <div>联系与合作：youngyoung0214@qq.com</div>
+      <div style="margin-top:8px">固件与网关以 Apache-2.0 开源 · © 2026</div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
